@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 	auto yours2_mb = yours2_buf.CreateSync(n);
 
 	// We test 2 in first to prevent cheating
-	//TestRoutine(yours1_mb, text_sync, n, 2, pos.data());
+	TestRoutine(yours1_mb, text_sync, n, 2, pos.data());
 	TestRoutine(yours2_mb, text_sync, n, 1, pos.data());
 
 	cudaFree(text_gpu);
