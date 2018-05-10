@@ -25,14 +25,25 @@ __device__ int Lowbit(int x) {
 
 __global__ void SimpleAlgo(const char* text, int *pos, int text_size) {
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (text[i] == '\n' || i == 0) {
-		pos[i] = 0;
-		int j = i + 1;
-		int counter = 1;
-		while(text[j] != '\n' && j < text_size){
-			pos[j] = counter;
-			counter ++;
-			j ++;
+	if (i < text_size) {
+		if (text[i] == '\n') {
+			pos[i] = 0;
+			int j = i + 1;
+			int counter = 1;
+			while(text[j] != '\n' && j < text_size){
+				pos[j] = counter;
+				counter ++;
+				j ++;
+			}
+		}
+		else if (i == 0 && text[i] != '\n') {
+			int j = 0;
+			int counter = 1;
+			while (text[j] != '\n' && i < text_size) {
+				pos[j] = counter;
+				counter ++;
+				j ++;
+			}
 		}
 	}
 }
@@ -111,13 +122,14 @@ __global__ void BITAlgo(const char* text, int *pos, int text_size){
 		while (j >= 1) {
 			ans = max(data[j-1], ans);
 			j -= Lowbit(j);
+			__syncthreads();
 		}
 		__syncthreads();
 
 		pos[i] = ans;
 	}
 }
-
+/*
 __global__ void SumBIT(const char *text, int *pos, int text_size){
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 	int j = i + 1;
@@ -127,7 +139,7 @@ __global__ void SumBIT(const char *text, int *pos, int text_size){
 		j -= Lowbit(j);
 	}
 }
-
+*/
 void CountPosition1(const char *text, int *pos, int text_size)
 {
 	thrust::equal_to<int> binary_pred;
