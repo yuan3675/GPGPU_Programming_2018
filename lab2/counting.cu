@@ -7,7 +7,6 @@
 #include <thrust/device_ptr.h>
 #include <thrust/execution_policy.h>
 #define max(a, b)((a)>(b)?(a):(b))
-#define odd(a)((a)%2!=0? 1: 0)
 __device__ __host__ int CeilDiv(int a, int b) { return (a-1)/b + 1; }
 __device__ __host__ int CeilAlign(int a, int b) { return CeilDiv(a, b) * b; }
 
@@ -24,38 +23,77 @@ __device__ int Lowbit(int x) {
 	return x&(-x);
 }
 
-__global__ void BITAlgo(const char* text,int *temp, int *pos, int text_size){
+__global__ void Algo(const char *text, int *temp, int *pos, int text_size) {
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = i + 1;
-	
+	if (i == 0)printf("hello\n");
 	if (i < text_size) {
-		temp[i] = 0;
-		if (text[i] == '\n') pos[i] = i + 1;
-		else pos[i] = -1;
-		/* This for loop takes lots of time */
-		if(pos[i] != -1) {
-			while(j <= text_size) {
-				temp[j-1] = max(temp[j-1], pos[i]);
-				j += Lowbit(j);
-			}
+		if (text[i] == '\n'){
+			temp[i] = i+1;
+			pos[i] = i + 1;
 		}
-		j = i + 1;
-		pos[i] = temp[i];
-		while (1) {
-			j-=(j&-j);
-			if (j <= 0)break;
-			pos[i] = max(pos[i], temp[j]);
+		else {
+			temp[i] = 0;
+			pos[i] = 0;
 		}
-		pos[i] = i + 1 - pos[i];
-		if ( i > 1050 && i < 1100 ){
-			if (text[i] != '\n') printf("%d %c %d %d\n", i + 1, text[i], temp[i], pos[i]);
-			else printf("%d space %d %d\n", i + 1, temp[i], pos[i]);
+	
+		int front = i;
+		while(front >= 0) {
+			if (temp[front]!= 0) break;
+			front--;
 		}
+		if (front == -1) pos[i] = i + 1;
+		else pos[i] = i + 1 - temp[front];
 	}
 }
 
-__global__ void Algo(const char *text,int temp, int *pos, int text_size) {
+__global__ void BITAlgo(const char* text, int *pos, int text_size){
+	const int tid = threadIdx.x;
+	const int bid = blockIdx.x;
+	__shared__ int data[512];
+	const int i = bid * blockDim.x + tid;
+
+	/* if current thread is out of index, we won't do it */
+	if (i < text_size) {
+		/* Initialize BIT array */
+		pos[i] = 0;
+		/* Initialize original sequence */
+		if (text[i] == '\n') {
+			data[tid] = i + 1;
+		}
+		else {
+			data[tid] = -1;
+		}
+		__syncthreads();
+
+		/* Construct Max BIT */
+		//if(data[i] != -1) {
+
+		// Set recurrent index
+		int j = i + 1;
+
+		//Get the update value
+		int val = data[tid];
+		while(j <= text_size) {
+			atomicMax(&pos[j - 1], val);
+			j += Lowbit(j);
+		}
+		
+		//}
+		__syncthreads();
+		
+		/* Compute interval max */
+		j = i + 1;
+		int ans = 0;
+		while (j >= 1) {
+			ans = max(pos[j-1], ans);
+			j -= Lowbit(j);
+		}
+		__syncthreads();
+
+		pos[i] = i + 1 - ans;
+	}
 }
+
 
 void CountPosition1(const char *text, int *pos, int text_size)
 {
@@ -72,6 +110,7 @@ void CountPosition1(const char *text, int *pos, int text_size)
 void CountPosition2(const char *text, int *pos, int text_size)
 {
 	int *temp;
-	cudaMalloc(&temp, sizeof(int)*text_size);
-	BITAlgo<<<(text_size/512) + 1, 512>>>(text, temp, pos, text_size);
+	cudaMalloc(&temp, sizeof(int) * text_size);
+	int blocks = (text_size + 511)/512;
+	Algo<<<blocks, 512>>>(text, temp, pos, text_size);
 }
