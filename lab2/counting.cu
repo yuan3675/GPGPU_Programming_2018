@@ -81,6 +81,7 @@ __global__ void Final(int *pos, int text_size) {
 	}
 }
 
+
 __global__ void BITAlgo(const char* text, int *pos, int text_size){
 	const int tid = threadIdx.x;
 	const int bid = blockIdx.x;
@@ -106,15 +107,12 @@ __global__ void BITAlgo(const char* text, int *pos, int text_size){
 		// Set recurrent index
 		int j = tid + 1;
 
-		//Get the update value
 		int val = data[tid];
 		while(j <= 512) {
 			atomicMax(&data[j - 1], val);
 			j += Lowbit(j);
+			__syncthreads();
 		}
-		
-		//}
-		__syncthreads();
 		
 		/* Compute interval max */
 		j = tid + 1;
@@ -124,22 +122,28 @@ __global__ void BITAlgo(const char* text, int *pos, int text_size){
 			j -= Lowbit(j);
 			__syncthreads();
 		}
-		__syncthreads();
 
 		pos[i] = ans;
 	}
 }
-/*
-__global__ void SumBIT(const char *text, int *pos, int text_size){
+
+__global__ void SumBIT(int *pos, int text_size){
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = i + 1;
-	int ans = 0;
-	while(j >= 1) {
-		ans = max(pos[j - 1], pos[j-1]);
-		j -= Lowbit(j);
-	}
+	const int bid = blockIdx.x;
+
+	if (i < text_size) {
+		if (bid != 0){
+			int j = (bid - 1) * blockDim.x + 511;
+			atomicMax(&pos[i], pos[j]);
+		}
+	}	
 }
-*/
+
+__global__ void ConvertBIT(int *pos, int text_size){
+	const int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < text_size)pos[i] = i + 1 - pos[i]; 
+}
+
 void CountPosition1(const char *text, int *pos, int text_size)
 {
 	thrust::equal_to<int> binary_pred;
@@ -157,6 +161,7 @@ void CountPosition2(const char *text, int *pos, int text_size)
 	//int *temp;
 	//cudaMalloc(&temp, sizeof(int) * text_size);
 	int blocks = (text_size + 511)/512;
-	Algo<<<blocks, 512>>>(text, pos, text_size);
-	Final<<<blocks, 512>>>(pos, text_size);
+	BITAlgo<<<blocks, 512>>>(text, pos, text_size);
+	SumBIT<<<blocks, 512>>>(pos, text_size);
+	ConvertBIT<<<blocks, 512>>>(pos, text_size);
 }
