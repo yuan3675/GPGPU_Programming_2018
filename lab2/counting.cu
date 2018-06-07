@@ -75,9 +75,11 @@ __global__ void Algo(const char *text,int *pos, int text_size) {
 __global__ void Final(int *pos, int text_size) {
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 	
-	if (pos[i] != 0 ) {
-		int look = pos[i];
-		if (i - look >= 0) atomicAdd(&pos[i], pos[i - look]);
+	if (i < text_size) {
+		if (pos[i] != 0 ) {
+			int look = pos[i];
+			if (i - look >= 0) atomicAdd(&pos[i], pos[i - look]);
+		}
 	}
 }
 
@@ -161,7 +163,6 @@ void CountPosition2(const char *text, int *pos, int text_size)
 	//int *temp;
 	//cudaMalloc(&temp, sizeof(int) * text_size);
 	int blocks = (text_size + 511)/512;
-	BITAlgo<<<blocks, 512>>>(text, pos, text_size);
-	SumBIT<<<blocks, 512>>>(pos, text_size);
-	ConvertBIT<<<blocks, 512>>>(pos, text_size);
+	Algo<<<blocks, 512>>>(text, pos, text_size);
+	Final<<<blocks, 512>>>(pos, text_size);
 }
